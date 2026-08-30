@@ -9,23 +9,18 @@ for line in sys.stdin:
 
     fields = line.split(",")
 
-    # taxi_id, company_id, model, year
     if len(fields) == 4:
         taxi_id = fields[0]
         company_id = fields[1]
 
-        # Composite key:
-        # taxi_id + record type 0
+        # Composite key: taxi_id + record type 0
         print(f"{taxi_id}\t0\t{company_id}")
 
-    # Trips.txt format:
-    # trip_id, taxi_id, fare, distance,
-    # pickup_x, pickup_y, dropoff_x, dropoff_y
+    # Trips.txt format:  trip_id, taxi_id, fare, distance,
     elif len(fields) == 8:
         taxi_id = fields[1]
         fare = fields[2]
         distance = fields[3]
 
-        # Composite key:
-        # taxi_id + record type 1
+        # Composite key:taxi_id + record type 1
         print(f"{taxi_id}\t1\t{fare}\t{distance}")
