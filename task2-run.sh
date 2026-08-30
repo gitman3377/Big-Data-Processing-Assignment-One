@@ -9,6 +9,7 @@
 # first One last job then writes the final answer to /Output/task2
 
 # Where everything lives on HDFS
+# reading Trips.txt 
 INPUT=/Input/Trips.txt
 OUTPUT=/Output/task2
 WORK=/Intermediate/task2                # working files, deleted at the end
@@ -32,15 +33,6 @@ rm -f initialization.clean
 
 echo "PAM configuration: k = $K medoids, v = $V iterations, $REDUCERS reducers"
 
-# Make sure Trips.txt is on HDFS If it is missing, upload the local copy
-hadoop fs -mkdir -p /Input
-hadoop fs -test -e $INPUT
-if [ $? -ne 0 ]
-then
-    echo "$INPUT not found on HDFS - uploading the local copy."
-    hadoop fs -copyFromLocal Trips.txt $INPUT
-fi
-
 # Hadoop will not write into a folder that already exists, so clear old runs
 hadoop fs -rm -r -f $OUTPUT
 hadoop fs -rm -r -f $WORK
@@ -55,13 +47,20 @@ do
 
     # medoids.txt is sent along with the code, so the mapper and reducer can
     # both open it by name on whichever machine they run on
+    # python3 is named directly so the job does not depend on the python files
+    # keeping their executable permission through a zip or a file transfer
+    # KeyFieldBasedPartitioner on field 1 (the cluster number) sends cluster 0
+    # to part-00000, cluster 1 to part-00001 and cluster 2 to part-00002, so
+    # the merged output comes out in cluster order
     hadoop jar /usr/lib/hadoop/hadoop-streaming.jar \
     -D mapreduce.job.reduces=$REDUCERS \
+    -D mapreduce.partition.keypartitioner.options=-k1,1 \
     -files task2-mapper.py,task2-reducer.py,medoids.txt \
-    -mapper ./task2-mapper.py \
-    -reducer "./task2-reducer.py iterate" \
+    -mapper "python3 task2-mapper.py" \
+    -reducer "python3 task2-reducer.py iterate" \
     -input $INPUT \
-    -output $WORK/iteration$i
+    -output $WORK/iteration$i \
+    -partitioner org.apache.hadoop.mapred.lib.KeyFieldBasedPartitioner
 
     # Stop straight away if the job did not work
     if [ $? -ne 0 ]
@@ -101,13 +100,16 @@ fi
 
 # Last job It only assigns the points to the final medoids and writes the
 # answer that gets marked: medoid_x, medoid_y, #points, avg_dissimilarity
+# Same partitioner, so the three result lines stay in cluster order
 hadoop jar /usr/lib/hadoop/hadoop-streaming.jar \
 -D mapreduce.job.reduces=$REDUCERS \
+-D mapreduce.partition.keypartitioner.options=-k1,1 \
 -files task2-mapper.py,task2-reducer.py,medoids.txt \
--mapper ./task2-mapper.py \
--reducer "./task2-reducer.py final" \
+-mapper "python3 task2-mapper.py" \
+-reducer "python3 task2-reducer.py final" \
 -input $INPUT \
--output $OUTPUT
+-output $OUTPUT \
+-partitioner org.apache.hadoop.mapred.lib.KeyFieldBasedPartitioner
 
 if [ $? -ne 0 ]
 then
